@@ -5,23 +5,31 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: checkout code
         uses: actions/checkout@v3
 
-      - name: Build Dockerfile
-        run: docker build -t devops-app .
-
       - name: DockerHub Login
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Tag & and push image
-        run: |
-          docker tag devops-app ${{ secrets.DOCKER_USERNAME }}/devops-app
-          docker push ${{ secrets.DOCKER_USERNAME }}/devops-app
+      - name: Build Docker image
+        run: dockr build -t ${{ secrets.DOCKER_USERNAME }}/devops-app .
 
-      - name: Docker Run
-        run: docker run -d -p 80:80 ${{ secrets.DOCKER_USERNAME }}/devops-app:latest
+      - name: Push Docker Image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/devops-app
+
+      - name: Deploy to EC2 using Docker Compose
+        uses: appleboy/ssh-action@master
+
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+
+          script: |
+            cd /home/ubuntu/devops-project
+            docker compose pull
+            docker compose up -d --build 
